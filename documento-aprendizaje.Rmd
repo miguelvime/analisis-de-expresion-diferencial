@@ -8,14 +8,14 @@ Objetivo: Aprender a realizar el análisis funcional
 
 1. Instalación de paquete AnnotationDbi para anotación biológica, incluye métodos para acceder y realizar búsquedas en bases de datos basadas en SQL.
 
-```
+```{r}
 if(!requireNamespace("BiocManager",quietly = TRUE))
 install.packages("BiocManager")
 BiocManager::install("AnnotationDbi")
 ```
 
 2. Instalo le paquete para Genome wide annotation for Human
-```
+```{r}
 if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 
@@ -24,14 +24,14 @@ BiocManager::install("org.Hs.eg.db", force = TRUE)
 
 3. Llamo a los paquetes
 
-```
+```{r}
 library(AnnotationDbi)
 library(org.Hs.eg.db)
 ```
 
 4. Exploración de la base de datos
 
-```
+```{r}
 columns(org.Hs.eg.db) #información a la que puedo acceder
 
 help("ENTREZID") # Explicación de la información de la línea anterior
@@ -42,7 +42,7 @@ org.Hs.eg.db # Muestra información de la base de datos
 
 5. Generamos una lista aleatorio de 100 genes
 
-```
+```{r}
 #Para poder reproducir el análisis, siempre creará los mismos genes, aunque el código diga que lo haga aleatorio
 
 set.seed(99) 
@@ -76,7 +76,144 @@ the columns or kinds of things that can be retrieved from the database. As with 
 **keytype**	
 the keytype that matches the keys used. For the select methods, this is used to indicate the kind of ID being used with the keys argument. For the keys method this is used to indicate which kind of keys are desired from keys
 
+```{r}
+annot <- AnnotationDbi::select (org.Hs.eg.db, keys = entrezID, columns = c("SYMBOL","GENENAME","GO","UNIPROT","OMIM"),keytype = "ENTREZID")
 ```
-annot <- select (org.Hs.eg.db, keys = entrezID, columns = c("SYMBOL","GENENAME","GO","UNIPROT","OMIM"),keytype = "ENTREZID")
+
+select = busca en esta base de datos (org.Hs.eg.db)
+keys = entrezID (quiero buscar mi lista de genes)
+keytype = "ENTREZID" los números que te paso son ENTREZID
+columns = c(...) Son las respuestas que quiero (simbolo, el nombre del gen, etc.)
+
+He creado un objeto con select() que tiene el nombre de los genes y su identificador en varias bases de datos, pero esto no me da información sobre las funciones.Tengo los genes, ahora necesito compararlos con la matriz de funciones, para ello usaremos la base de datos Gene Ontology (GO)
+
+```{r}
+BiocManager::install("GO.db")
+library(GO.db)
 ```
+
+Para explorar bases de datos tengo varias funciones:
+
+```{r}
+AnnotationDbi::columns(GO.db)
+AnnotationDbi::keytypes(GO.db)
+```
+
+En la base de datos está el GOID, es decir el ID dentro de GO. Esto corresponde a GO en el objeto annot que contiene nuestros genes. 
+
+Vamos a crear un documento en el que vengan los ID de GO. En el incluimos la definición, y el término.
+
+```{r}
+annotGO<- select (GO.db, keys = annot$GO, columns = c("DEFINITION","TERM"), keytype = "GOID")
+```
+
+¿Tienen el mismo índice los genes en ambas bases de datos? 
+
+```{r}
+all(annot$GO ==annotGO$GOID, na.rm =T)
+```
+Si queremos combinar los dataframes, para tener uno con toda la información podemos usar cbind() del paquete base. Fíjate que aparecen las dos columnas del ID de GO, no es sobre una. Lo que podría ser peligroso si no juntas correctamente la información
+
+```{r}
+annot_combinado<-base::cbind(annot, annotGO)
+```
+Podemos separar la información por entrezID. Por un lado tengo el elemento annot, que viene de cogeer un conjunto de genes aleatorio`(entrezID) + la información de la db de org.Hs.eg.db. Por otro el annotGO que me da información sobre qué hacen o dónde están esos genes.
+
+```{r}
+annotByEntrez<-split(annot,annot$ENTREZID)
+```
+
+De esta manera tenemos un elemento para cada ENTREZID, podemos acceder a la información de cada elemento con las comillas:
+
+```{r}
+annotByEntrez$'9673'
+```
+
+En resumen, qué necesitas saber:
+1. Bases de datos: explorar y cruzarlas con tu lista de genes, cogiendo la información que te interese /las columnas que te interesen. Aquí uso select
+2. Funciones exploratorias de los datos: columns(), keytypes(), head(), escribir simplemente el elemento en la consola, etc.
+
+---
+Hasta ahora hemos anotado con annotationDbi, ahora probaremos biomaRt, con el mismo objetivo.
+
+```{r}
+library(biomaRt)
+```
+Usamos los genes que tenemos en entrezID.
+Vamos a explorar la base de datos Ensembl al igual que hicimos con org.Hs.eg.db, en esa era con 
+```{r}
+biomaRt::listEnsembl()
+
+```
+queremos usar Ensembl
+ensemble <- biomaRt::useEnsembl()
+
+Vamos a ver qué bases de datos hay disponibles 
+
+```{r}
+biomaRt::listDatasets(biomaRt::useEnsembl('genes'))
+```
+
+En resumen, 
+**listMarts()** para ver bases de datos
+
+**listEnsembl()** para ver las bases de datos, por ejemplo 'genes', 'snps','regulation', etc
+
+**useEnsembl('genes')** para dentro de Ensembl elegir qué base de datos de esa quiero conectarme, en este caso 'genes', que son las que he visto con listEnsembl()
+
+**listDatasets(useEnsembl('genes'))** para ver los datasets dentro de genes
+
+Entonces ahora que sabemos explorar la base de datos, vamos a anotar nuestra lista de genes.
+
+```{r}
+listEnsembl()
+```
+
+Vemos que dnetro está 'genes', que es lo que quiero, exploremos más a fondo, tenemos que ver dentro de la basee de datos genes, qué datasets hay
+```{r}
+listDatasets(useEnsembl('genes'))
+```
+Hay 213 rows, tengo que ver donde habrá sapiens.
+```{r}
+datasets_in_genes<- listDatasets(useEnsembl('genes'))
+library(tidyverse)
+dataset_sapiens<-datasets_in_genes %>%
+  filter(str_detect(datasets_in_genes$dataset,"sapiens"))
+```
+Otra opción para filtrar la parte del genoma humano 
+```{r}
+dataset_sapiens_2<-datasets_in_genes %>% 
+  filter(base::grepl("sapiens", dataset, ignore.case = TRUE))
+```
+grepl da TRUE si encuentra el fragmento de string, ignore.case=TRUE hace que no tenga problemas con mayuscula/minuscula
+
+Ahora sí, tenemos el biomart donde queremos buscar ('genes'), tenemos el dataset ('hsapiens_gene_ensembl').Vamos a crear un objeto donde tengamos todos los genes humanos, luego compararemos nuestra lista con este
+
+```{r}
+ensembl_genes_human<-biomaRt::useEnsembl(biomart = 'genes',dataset = "hsapiens_gene_ensembl")
+```
+
+Ahora vamos a preguntar a la base de datos, la principal función para esto es getBM() con 4 argumentos obligatorios: attrbutes, filters, values y mart. Vamos a explorar las posibilidades dentro de nuestro objeto Mart creado previamente
+
+```{r}
+biomaRt::listAttributes(ensembl_genes_human)
+biomaRt::listFilters(ensembl_genes_human)
+#values -> conjunto de genes que queremos anotar (entrezID) 
+#mart: nuestro Mart
+```
+
+Ahora vamos a anotar con getBM() ya que ya conocemos los argumentos.
+
+```{r}
+annotMart<-biomaRt::getBM(
+  attributes = c('entrezgene_id','hgnc_symbol','go_id','name_1006'), 
+  filters = 'entrezgene_id',
+  values = entrezID,
+  mart = ensembl_genes_human)
+```
+
+El resultado es un dataframe en el que salen nuestros genes anotados. Anotado se entiende, con más info que solo el código inicial que tenía. A la hora del análisis funcional me pediran más datos que ese ID, y esos datos son los que tengo que coger en attributes de getBM.
+
+
+
 
