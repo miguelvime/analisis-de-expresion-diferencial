@@ -1,0 +1,6 @@
+---
+title: "entrega-expresion-diferencial-miguel-vicente"
+author: "miguel angel vicente mesonero"
+date: "2026-01-29"
+output: html_document
+---
