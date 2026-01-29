@@ -12,21 +12,34 @@ mat <- read.delim("BRCA_exp_matrix.tsv",
                      sep="\t",
                      fill =T,
                      stringsAsFactors = F)
-library(data.table)
-clinical <- fread("clinical_info_TCGA-BRCA.tsv")
-  
-  # read.delim("clinical_info_TCGA-BRCA.tsv",
-  #                      sep = "\t",
-  #                      check.names = T,
-  #                      header = TRUE,
-  #                      fill=TRUE,
-  #                      stringsAsFactors = F)
+clinical <- read.delim("clinical_info_TCGA-BRCA.tsv",
+                       sep = "\t",
+                       check.names = T,
+                       header = TRUE,
+                       fill=TRUE,
+                       stringsAsFactors = F)
 
-#2. Exploro los datos
+# 2. Exploro los datos
 tibble::view(mat)
-dim(mat)
-###En el dataframe las filas corresponden a genes (20500-ALPL,ALPK1,etc-)
-### Las columnas son muestras (1155)
+dim(mat) # Las dimensiones son 20500 genes (filas) x 1155 muestras (columnas)
 
 
-#
+colnames(clinical)  
+dim(clinical) #114 variables clínicas
+
+# 3. Normalizo datos
+
+sum(colnames(mat) %in% clinical$sample) #1032/1054 muestras de mat están en clinical
+
+  #Cojo solo las muestras de la matriz de expresión que tengo en clinical
+snames<- intersect(colnames(mat), clinical$sample)
+sum(duplicated(clinical$sample)) #Vemos cuantos duplicados hay
+
+
+
+
+
+
+
+
+
