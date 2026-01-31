@@ -6,6 +6,9 @@
 # 
 # ===================================================
 
+# 0. Librerías
+library(edgeR)
+
 # 1. Cargo matriz de conteos y datos clínicos
 mat <- read.delim("BRCA_exp_matrix.tsv",
                      header =T,
@@ -44,14 +47,26 @@ clinical [duplicated(clinical$sample),]
 clinical<- clinical [!duplicated(clinical$sample),]
 
   #Me quedo con los que están tanto en clínical como en matriz
-clinical<- clinical[snames,]
+rownames(clinical) <- clinical$sample
+clinical <- clinical[snames,]
 matriz <- mat[,snames]
 
+  #Busco variables de er y edad
+er <- grep("^er_", colnames(clinical))
+colnames(clinical)[er]
+colnames(clinical)[grep("age",colnames(clinical))]
 
+#variables er_status_by_ihc & age_at_diagnosis
 
+  #En clinical los que sean er positivos o negativos, es decir, quitamos [not evaluated]
+clinical<-clinical[clinical$er_status_by_ihc == "Negative" |clinical$er_status_by_ihc == "Positive",]
 
+  #En clinical: limpieza NAs e intersección con matriz
+sum(is.na(clinical$age_at_diagnosis)) #Hay 0
+matriz <- matriz[,rownames(clinical)]
 
+  #Creo factor necesario para análisis
+ER <- factor(clinical$er_status_by_ihc,levels = c("Positive","Negative"))
+age <- clinical$age_at_diagnosis
 
-
-
-
+design <- model.matrix()
