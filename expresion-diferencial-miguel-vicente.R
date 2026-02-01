@@ -30,7 +30,7 @@ dim(mat) # Las dimensiones son 20500 genes (filas) x 1155 muestras (columnas)
 colnames(clinical)  
 dim(clinical) #114 variables clínicas
 
-# 3. Normalizo datos (intersección, duplicados )
+# 3. Limpieza de duplicados y sincronización de datos 
 
 sum(colnames(mat) %in% clinical$sample) #1032/1054 muestras de mat están en clinical
 
@@ -46,7 +46,7 @@ clinical [duplicated(clinical$sample),]
   #Me quedo con los que no son duplicados
 clinical<- clinical [!duplicated(clinical$sample),]
 
-  #Me quedo con los que están tanto en clínical como en matriz
+  #Sincronización de datos
 rownames(clinical) <- clinical$sample
 clinical <- clinical[snames,]
 matriz <- mat[,snames]
@@ -61,7 +61,7 @@ colnames(clinical)[grep("age",colnames(clinical))]
   #En clinical los que sean er positivos o negativos, es decir, quitamos [not evaluated]
 clinical<-clinical[clinical$er_status_by_ihc == "Negative" |clinical$er_status_by_ihc == "Positive",]
 
-  #En clinical: limpieza NAs e intersección con matriz
+  #En clinical: limpieza NAs e sincronización entre matrices
 sum(is.na(clinical$age_at_diagnosis)) #Hay 0
 matriz <- matriz[,rownames(clinical)]
 
@@ -69,4 +69,32 @@ matriz <- matriz[,rownames(clinical)]
 ER <- factor(clinical$er_status_by_ihc,levels = c("Positive","Negative"))
 age <- clinical$age_at_diagnosis
 
-design <- model.matrix()
+  #Creamos matriz de diseño a partir de edad y ER
+design <- model.matrix(~ER+age)
+
+  #Creo la DGEList a partir de la matriz (información de los pacientes)
+y <- DGEList(matriz)
+
+# 4. Normalización de datos
+
+y<- calcNormFactors(y)
+
+  #Elimino aquellos con expresión baja
+keep <- filterByExpr(y = y,design = design)
+y <- y [keep,,keep.lib.sizes = TRUE]
+
+y <-edgeR::estimateCommonDisp(y)
+
+# 5. Modelado y Test 
+ #Creación de modeloque explique expresión de cada gen, teniendo en cuenta la matriz de diseño, que se creó viendo las distribuciones de edad y ER
+fit <- edgeR::glmQLFit(y,design)
+
+  # Comparo diferencias de expresión en ER negativo contra positivo en el modelo creado previamente con glmQFit
+qlf<- edgeR::glmQLFTest(fit,coef = "ERNegative")
+
+  #Extraemos los genes que más explican diferencias entre ER+ y ER-
+pvalues <-edgeR::topTags(qlf,n=Inf, adjust.method = "BH",sort.by = "PValue",p.value=1)
+p_values <-as.data.frame (pvalues)
+alpha <- 0.05
+significativos <- p_values[p_values$FDR<alpha,]
+
